@@ -1,0 +1,39 @@
+repository_type: pipeline
+
+nf_core_version: 3.5.2
+
+lint:
+  files_unchanged:
+    - CODE_OF_CONDUCT.md
+    - assets/nf-core-ont-live-basecall_logo_light.png
+    - docs/images/nf-core-ont-live-basecall_logo_light.png
+    - docs/images/nf-core-ont-live-basecall_logo_dark.png
+    - .github/ISSUE_TEMPLATE/bug_report.yml
+    - .github/CONTRIBUTING.md
+    - .github/PULL_REQUEST_TEMPLATE.md
+    - assets/email_template.txt
+    - docs/README.md
+  nextflow_config:
+    - manifest.name
+    - manifest.homePage
+  multiqc_config:
+    - report_comment
+  files_exist:
+    - CODE_OF_CONDUCT.md
+    - assets/nf-core-ont-live-basecall_logo_light.png
+    - docs/images/nf-core-ont-live-basecall_logo_light.png
+    - docs/images/nf-core-ont-live-basecall_logo_dark.png
+    - .github/ISSUE_TEMPLATE/config.yml
+    - .github/workflows/awstest.yml
+    - .github/workflows/awsfulltest.yml
+
+template:
+  org: EIT-GBI
+  name: ont-live-basecall
+  description: Pipeline to run live basecalling for ONT machines on cluster
+  author: PAULINE FOURGOUX
+  version: 1.0.0dev
+  force: true
+  outdir: .
+  skip_features: []
+  is_nfcore: false
