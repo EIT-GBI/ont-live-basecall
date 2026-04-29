@@ -8,6 +8,7 @@ test_data/
 .vscode/
 .DS_Store
 .nextflow.log*
+new/
 
 # User-specific files
 *.rsuser

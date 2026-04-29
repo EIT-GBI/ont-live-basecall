@@ -18,11 +18,15 @@ workflow {
         ch_chrom_sizes = GETCHROMSIZES.out.sizes.first()
     }
 
-// ch_pod = channel.watchPath("${params.folderpath}*.{pod5,done}")
-//    .until { it.name.endsWith('.done') }   // or 'final_summary.txt', etc.
-
-    ch_pod = channel.watchPath("${params.folderpath}*.pod5")
+    ch_pod = channel.watchPath("${params.folderpath}**")
+        .until { f -> f.name.startsWith('sequencing_summary') && f.extension == 'txt' }
+        .filter { f -> f.extension == 'pod5' }
         .map { pod -> tuple([id: pod.baseName], pod) }
+
+    ch_pod
+        .view { meta, pod -> "[POD5 detected] ${pod.name} (id=${meta.id})" }
+        .count()
+        .view { n -> "[watchPath terminated] Total pod5 files received: ${n}" }
 
     DORADO_BASECALLER(
         ch_pod,
