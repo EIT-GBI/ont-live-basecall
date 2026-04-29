@@ -5,6 +5,7 @@ include { BEDTOOLS_GENOMECOV    } from './modules/local/bedtools/genomecov/main.
 include { UCSC_BEDGRAPHTOBIGWIG } from './modules/local/ucsc/bedgraphtobigwig/main.nf'
 
 workflow {
+    main:
     if (!params.reference) {
         error "Please provide a reference file via --reference <path/to/ref.fa|.mmi>"
     }
@@ -37,4 +38,17 @@ workflow {
     SAMTOOLS_SORT_INDEX(DORADO_BASECALLER.out.bam)
     BEDTOOLS_GENOMECOV(SAMTOOLS_SORT_INDEX.out.bam)
     UCSC_BEDGRAPHTOBIGWIG(BEDTOOLS_GENOMECOV.out.bedgraph, ch_chrom_sizes)
+
+    publish:
+    bams      = SAMTOOLS_SORT_INDEX.out.bam
+    bais      = SAMTOOLS_SORT_INDEX.out.bai
+    bedgraphs = BEDTOOLS_GENOMECOV.out.bedgraph
+    bigwigs   = UCSC_BEDGRAPHTOBIGWIG.out.bigwig
+}
+
+output {
+    bams      { path 'bams'      }
+    bais      { path 'bams'      }
+    bedgraphs { path 'bedgraphs' }
+    bigwigs   { path 'bigwigs'   }
 }
