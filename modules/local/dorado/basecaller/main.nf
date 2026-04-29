@@ -2,7 +2,7 @@ process DORADO_BASECALLER {
     tag "${meta.id}"
     label 'process_gpu'
 
-    container 'nanoporetech/dorado:shaa1777f96fdb1a85adfd2b8c8b8aa9706bf80bcb6'
+    container 'nanoporetech/dorado:shac8f356489fa8b44b31beba841b84d2879de2088e'
 
     input:
     tuple val(meta), path(pod5)

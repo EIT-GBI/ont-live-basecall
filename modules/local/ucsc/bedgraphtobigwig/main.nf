@@ -1,7 +1,7 @@
 process UCSC_BEDGRAPHTOBIGWIG {
     tag "${meta.id}"
 
-    container 'quay.io/biocontainers/ucsc-bedgraphtobigwig:445--h2a80c09_0'
+    container 'quay.io/biocontainers/ucsc-bedgraphtobigwig:482--hdc0a859_0'
 
     input:
     tuple val(meta), path(bedgraph)
