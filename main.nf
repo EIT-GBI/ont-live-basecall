@@ -12,10 +12,12 @@ workflow {
 
     ch_reference = file(params.reference)
 
+    GETCHROMSIZES(ch_reference)
+    ch_fai = GETCHROMSIZES.out.fai.first()
+
     if (params.chrom_sizes) {
         ch_chrom_sizes = file(params.chrom_sizes)
     } else {
-        GETCHROMSIZES(ch_reference)
         ch_chrom_sizes = GETCHROMSIZES.out.sizes.first()
     }
 
@@ -40,10 +42,13 @@ workflow {
     UCSC_BEDGRAPHTOBIGWIG(BEDTOOLS_GENOMECOV.out.bedgraph, ch_chrom_sizes)
 
     publish:
-    bams      = SAMTOOLS_SORT_INDEX.out.bam
-    bais      = SAMTOOLS_SORT_INDEX.out.bai
-    bedgraphs = BEDTOOLS_GENOMECOV.out.bedgraph
-    bigwigs   = UCSC_BEDGRAPHTOBIGWIG.out.bigwig
+    bams        = SAMTOOLS_SORT_INDEX.out.bam
+    bais        = SAMTOOLS_SORT_INDEX.out.bai
+    bedgraphs   = BEDTOOLS_GENOMECOV.out.bedgraph
+    bigwigs     = UCSC_BEDGRAPHTOBIGWIG.out.bigwig
+    reference   = ch_reference
+    fai         = ch_fai
+    chrom_sizes = ch_chrom_sizes
 
     onComplete:
     def sentinel = file("${workflow.outputDir}/PIPELINE_DONE")
@@ -57,8 +62,11 @@ workflow {
 }
 
 output {
-    bams      { path 'bams'      }
-    bais      { path 'bams'      }
-    bedgraphs { path 'bedgraphs' }
-    bigwigs   { path 'bigwigs'   }
+    bams        { path 'bams'      }
+    bais        { path 'bams'      }
+    bedgraphs   { path 'bedgraphs' }
+    bigwigs     { path 'bigwigs'   }
+    reference   { path { _f -> "reference/genome.fa" } }
+    fai         { path { _f -> "reference/genome.fa.fai" } }
+    chrom_sizes { path { _f -> "reference/genome.chrom.sizes" } }
 }

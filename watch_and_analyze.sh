@@ -23,8 +23,8 @@ PROCESSED_BWS="${OUT_DIR}/.processed_bigwigs.txt"
 # Sentinel from Nextflow workflow.onComplete
 SENTINEL="${IN_DIR}/PIPELINE_DONE"
 
-REFERENCE="reference/genome.fa"
-CHROM_SIZES="reference/genome.chrom.sizes"
+REFERENCE="${IN_DIR}/reference/genome.fa"
+CHROM_SIZES="${IN_DIR}/reference/genome.chrom.sizes"
 
 # Clair3
 CLAIR3_MODEL="models/r1041_e82_400bps_sup_v500"
