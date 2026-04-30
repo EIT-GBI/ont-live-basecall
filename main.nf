@@ -44,6 +44,16 @@ workflow {
     bais      = SAMTOOLS_SORT_INDEX.out.bai
     bedgraphs = BEDTOOLS_GENOMECOV.out.bedgraph
     bigwigs   = UCSC_BEDGRAPHTOBIGWIG.out.bigwig
+
+    onComplete:
+    def sentinel = file("${workflow.outputDir}/PIPELINE_DONE")
+    sentinel.text = """\
+        Pipeline completed: ${workflow.complete}
+        Status: ${workflow.success ? 'SUCCESS' : 'FAILED'}
+        Duration: ${workflow.duration}
+        Work dir: ${workflow.workDir}
+        """.stripIndent()
+    println "Sentinel written to ${sentinel}"
 }
 
 output {
