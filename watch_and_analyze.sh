@@ -171,7 +171,10 @@ regenerate_coverage() {
     local tmp_bg="${MERGED_BG}.tmp"
     local tmp_bw="${MERGED_BW}.tmp"
 
-    if bedtools genomecov -bga -ibam "$MERGED_BAM" > "$tmp_bg" \
+    # bedtools emits bedgraph in BAM-header order; bedGraphToBigWig needs
+    # it sorted alphabetically by chrom (then by start).
+    if bedtools genomecov -bga -ibam "$MERGED_BAM" \
+         | LC_ALL=C sort -k1,1 -k2,2n > "$tmp_bg" \
        && bedGraphToBigWig "$tmp_bg" "$CHROM_SIZES" "$tmp_bw"; then
         mv "$tmp_bg" "$MERGED_BG"
         mv "$tmp_bw" "$MERGED_BW"
