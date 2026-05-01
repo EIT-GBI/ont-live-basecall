@@ -1,4 +1,18 @@
 #!/bin/bash
+#SBATCH --job-name=test_part2
+
+#SBATCH --partition=gpu
+
+#SBATCH --ntasks=1
+#SBATCH --time=1-00:00:00
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=64G
+#SBATCH --gres=gpu:1
+
+#SBATCH --container-image=docker://ghcr.io/eit-gbi/ont-watcher:v1
+#SBATCH --container-mounts=/mnt:/mnt
+#SBATCH --output=slurm-%j.stdout
+#
 # watch_and_analyze.sh
 # Live incremental merging + variant calling for a running Nanopore
 # sequencing run of a bacterial isolate. Designed to scale to thousands
@@ -7,7 +21,7 @@
 set -euo pipefail
 
 # --- Config ---
-IN_DIR="/mnt/gbi-shared/tmp/labdemo/"
+IN_DIR="/mnt/gbi-shared/tmp/labdemo"
 BAM_DIR="${IN_DIR}/bams"
 BW_DIR="${IN_DIR}/bigwigs"
 OUT_DIR="${IN_DIR}/merged"
@@ -40,6 +54,7 @@ VARIANT_INTERVAL=120
 RUN_CLAIR3="run_clair3.sh"
 
 # --- Setup ---
+echo "OUT_DIR: $OUT_DIR"
 mkdir -p "$OUT_DIR"
 touch "$PROCESSED_BAMS" "$PROCESSED_BWS"
 
