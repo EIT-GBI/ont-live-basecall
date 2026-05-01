@@ -9,30 +9,30 @@
 #SBATCH --mem=64G
 #SBATCH --gres=gpu:1
 
-#SBATCH --container-image=docker://ghcr.io/eit-gbi/ont-watcher:v1
+#SBATCH --container-image=docker://ghcr.io/eit-gbi/ont-watcher:v2
 #SBATCH --container-mounts=/mnt:/mnt
 #SBATCH --output=slurm-%j.stdout
 #
 # watch_and_analyze.sh
 # Live incremental merging + variant calling for a running Nanopore
-# sequencing run of a bacterial isolate. Designed to scale to thousands
-# of input files by merging only newly-arrived BAMs/BigWigs each cycle.
+# sequencing run of a bacterial isolate. Each cycle merges newly-arrived
+# BAMs into merged.bam, then regenerates merged.bedgraph + merged.bw
+# from it via bedtools genomecov + bedGraphToBigWig.
 
 set -euo pipefail
 
 # --- Config ---
 IN_DIR="/mnt/gbi-shared/tmp/labdemo"
 BAM_DIR="${IN_DIR}/bams"
-BW_DIR="${IN_DIR}/bigwigs"
 OUT_DIR="${IN_DIR}/merged"
 
 MERGED_BAM="${OUT_DIR}/merged.bam"
+MERGED_BG="${OUT_DIR}/merged.bedgraph"
 MERGED_BW="${OUT_DIR}/merged.bw"
 VARIANTS="${OUT_DIR}/variants.vcf.gz"
 
 # State files: which inputs have already been folded into the merged output
 PROCESSED_BAMS="${OUT_DIR}/.processed_bams.txt"
-PROCESSED_BWS="${OUT_DIR}/.processed_bigwigs.txt"
 
 # Sentinel from Nextflow workflow.onComplete
 SENTINEL="${IN_DIR}/PIPELINE_DONE"
@@ -56,7 +56,7 @@ RUN_CLAIR3="run_clair3.sh"
 # --- Setup ---
 echo "OUT_DIR: $OUT_DIR"
 mkdir -p "$OUT_DIR"
-touch "$PROCESSED_BAMS" "$PROCESSED_BWS"
+touch "$PROCESSED_BAMS"
 
 last_variant_run=0
 last_nvar="-"
@@ -81,13 +81,10 @@ new_files() {
 print_status() {
     shopt -s nullglob
     local bams=("${BAM_DIR}"/*.bam)
-    local bws=("${BW_DIR}"/*.bw)
     shopt -u nullglob
     local n_bams=${#bams[@]}
-    local n_bws=${#bws[@]}
-    local n_merged_bams n_merged_bws
+    local n_merged_bams
     n_merged_bams=$(wc -l < "$PROCESSED_BAMS")
-    n_merged_bws=$(wc -l < "$PROCESSED_BWS")
 
     local n_reads="-" mean_cov="-"
     if [ -f "$MERGED_BAM" ]; then
@@ -111,8 +108,8 @@ print_status() {
 
     echo "==============================================================="
     echo " [$(date '+%H:%M:%S')] LIVE STATUS"
-    echo "  Inputs:    ${n_bams} BAMs   ${n_bws} BigWigs"
-    echo "  Merged:    ${n_merged_bams}/${n_bams} BAMs   ${n_merged_bws}/${n_bws} BigWigs"
+    echo "  Inputs:    ${n_bams} BAMs"
+    echo "  Merged:    ${n_merged_bams}/${n_bams} BAMs"
     echo "  Reads:     ${n_reads}   coverage ${mean_cov}"
     echo "  Variants:  ${last_nvar}   (${last_variant_status}, last attempt: ${since})"
     echo "==============================================================="
@@ -168,30 +165,20 @@ merge_bams() {
     fi
 }
 
-merge_bigwigs() {
-    local new_bws
-    mapfile -t new_bws < <(new_files "${BW_DIR}/*.bw" "$PROCESSED_BWS")
-    [ ${#new_bws[@]} -eq 0 ] && return 0
+regenerate_coverage() {
+    [ ! -f "$MERGED_BAM" ] && return 0
 
-    echo "[$(date '+%H:%M:%S')] Adding ${#new_bws[@]} new BigWigs to merged output..."
+    local tmp_bg="${MERGED_BG}.tmp"
+    local tmp_bw="${MERGED_BW}.tmp"
 
-    local merge_inputs=()
-    [ -f "$MERGED_BW" ] && merge_inputs+=("$MERGED_BW")
-    merge_inputs+=("${new_bws[@]}")
-
-    local tmp_bg="${MERGED_BW}.tmp.bg"
-    local tmp_sorted="${MERGED_BW}.tmp.sorted.bg"
-
-    if bigWigMerge "${merge_inputs[@]}" "$tmp_bg" \
-       && LC_ALL=C sort -k1,1 -k2,2n "$tmp_bg" > "$tmp_sorted" \
-       && bedGraphToBigWig "$tmp_sorted" "$CHROM_SIZES" "${MERGED_BW}.tmp"; then
-        mv "${MERGED_BW}.tmp" "$MERGED_BW"
-        rm -f "$tmp_bg" "$tmp_sorted"
-        printf '%s\n' "${new_bws[@]}" >> "$PROCESSED_BWS"
-        echo "[$(date '+%H:%M:%S')] BigWig merge done (+${#new_bws[@]} files)."
+    if bedtools genomecov -bga -ibam "$MERGED_BAM" > "$tmp_bg" \
+       && bedGraphToBigWig "$tmp_bg" "$CHROM_SIZES" "$tmp_bw"; then
+        mv "$tmp_bg" "$MERGED_BG"
+        mv "$tmp_bw" "$MERGED_BW"
+        echo "[$(date '+%H:%M:%S')] Coverage regenerated from merged BAM."
     else
-        echo "[$(date '+%H:%M:%S')] BigWig merge failed, keeping previous ${MERGED_BW}."
-        rm -f "$tmp_bg" "$tmp_sorted" "${MERGED_BW}.tmp"
+        echo "[$(date '+%H:%M:%S')] Coverage regeneration failed, keeping previous outputs."
+        rm -f "$tmp_bg" "$tmp_bw"
         return 1
     fi
 }
@@ -254,15 +241,16 @@ call_variants() {
 
 # --- Main loop ---
 echo "[$(date)] Starting watcher."
-echo "[$(date)] Watching ${BAM_DIR} and ${BW_DIR}"
+echo "[$(date)] Watching ${BAM_DIR}"
 echo "[$(date)] Will exit when ${SENTINEL} appears."
 echo "[$(date)] Merge every ${MERGE_INTERVAL}s, variants every ${VARIANT_INTERVAL}s (min ${MIN_COVERAGE_FOR_VARIANTS}x)"
 
 while [ ! -f "$SENTINEL" ]; do
     print_status
 
-    merge_bams     || true
-    merge_bigwigs  || true
+    if merge_bams; then
+        regenerate_coverage || true
+    fi
 
     now=$(date +%s)
     if [ $(( now - last_variant_run )) -ge "$VARIANT_INTERVAL" ] && [ -f "$MERGED_BAM" ]; then
@@ -279,8 +267,8 @@ done
 
 # --- Final pass after sentinel ---
 echo "[$(date '+%H:%M:%S')] Sentinel detected. Doing final pass..."
-merge_bams     || true
-merge_bigwigs  || true
-call_variants  || true
+merge_bams           || true
+regenerate_coverage  || true
+call_variants        || true
 print_status
 echo "[$(date '+%H:%M:%S')] Done. Exiting."
