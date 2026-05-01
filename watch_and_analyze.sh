@@ -38,7 +38,6 @@ PROCESSED_BAMS="${OUT_DIR}/.processed_bams.txt"
 SENTINEL="${IN_DIR}/PIPELINE_DONE"
 
 REFERENCE="${IN_DIR}/reference/genome.fa"
-CHROM_SIZES="${IN_DIR}/reference/genome.chrom.sizes"
 
 # Clair3
 CLAIR3_MODEL="models/r1041_e82_400bps_sup_v500"
@@ -89,15 +88,13 @@ print_status() {
     local n_reads="-" mean_cov="-"
     if [ -f "$MERGED_BAM" ]; then
         n_reads=$(samtools view -c "$MERGED_BAM" 2>/dev/null || echo "-")
-        if [ -f "${REFERENCE}.fai" ]; then
-            local genome_size total_bases
-            genome_size=$(awk '{s+=$2} END {print s}' "${REFERENCE}.fai")
-            total_bases=$(samtools depth -a "$MERGED_BAM" 2>/dev/null \
-                          | awk '{s+=$3} END {print s+0}')
-            if [ "$genome_size" -gt 0 ] 2>/dev/null; then
-                mean_cov=$(awk -v t="$total_bases" -v g="$genome_size" \
-                           'BEGIN {printf "%.1fx", t/g}')
-            fi
+        local genome_size total_bases
+        genome_size=$(bam_genome_size "$MERGED_BAM")
+        total_bases=$(samtools depth -a "$MERGED_BAM" 2>/dev/null \
+                      | awk '{s+=$3} END {print s+0}')
+        if [ "$genome_size" -gt 0 ] 2>/dev/null; then
+            mean_cov=$(awk -v t="$total_bases" -v g="$genome_size" \
+                       'BEGIN {printf "%.1fx", t/g}')
         fi
     fi
 
@@ -115,12 +112,30 @@ print_status() {
     echo "==============================================================="
 }
 
+# Sum of all @SQ LN values in the BAM header — the genome size as the BAM sees it.
+bam_genome_size() {
+    samtools view -H "$1" 2>/dev/null \
+      | awk '/^@SQ/ { for (i=2; i<=NF; i++) if ($i ~ /^LN:/) s += substr($i, 4) } END { print s+0 }'
+}
+
+# Write a chrom.sizes file (name<TAB>length) derived from the BAM header.
+bam_chrom_sizes() {
+    samtools view -H "$1" 2>/dev/null \
+      | awk 'BEGIN{OFS="\t"} /^@SQ/ {
+            sn=""; ln=""
+            for (i=2; i<=NF; i++) {
+                if ($i ~ /^SN:/) sn = substr($i, 4)
+                if ($i ~ /^LN:/) ln = substr($i, 4)
+            }
+            if (sn != "" && ln != "") print sn, ln
+        }'
+}
+
 # Returns mean coverage as a plain number (no 'x' suffix), or 0 if no merged BAM
 current_coverage() {
     [ ! -f "$MERGED_BAM" ] && { echo 0; return; }
-    [ ! -f "${REFERENCE}.fai" ] && { echo 0; return; }
     local genome_size total_bases
-    genome_size=$(awk '{s+=$2} END {print s}' "${REFERENCE}.fai")
+    genome_size=$(bam_genome_size "$MERGED_BAM")
     total_bases=$(samtools depth -a "$MERGED_BAM" 2>/dev/null \
                   | awk '{s+=$3} END {print s+0}')
     awk -v t="$total_bases" -v g="$genome_size" \
@@ -170,18 +185,23 @@ regenerate_coverage() {
 
     local tmp_bg="${MERGED_BG}.tmp"
     local tmp_bw="${MERGED_BW}.tmp"
+    local tmp_sizes="${MERGED_BG}.sizes.tmp"
 
-    # bedtools emits bedgraph in BAM-header order; bedGraphToBigWig needs
-    # it sorted alphabetically by chrom (then by start).
+    # Derive chrom.sizes from the BAM header so it always matches whatever
+    # contigs the bedgraph contains. bedtools emits bedgraph in BAM-header
+    # order; bedGraphToBigWig needs it sorted alphabetically by chrom.
+    bam_chrom_sizes "$MERGED_BAM" > "$tmp_sizes"
+
     if bedtools genomecov -bga -ibam "$MERGED_BAM" \
          | LC_ALL=C sort -k1,1 -k2,2n > "$tmp_bg" \
-       && bedGraphToBigWig "$tmp_bg" "$CHROM_SIZES" "$tmp_bw"; then
+       && bedGraphToBigWig "$tmp_bg" "$tmp_sizes" "$tmp_bw"; then
         mv "$tmp_bg" "$MERGED_BG"
         mv "$tmp_bw" "$MERGED_BW"
+        rm -f "$tmp_sizes"
         echo "[$(date '+%H:%M:%S')] Coverage regenerated from merged BAM."
     else
         echo "[$(date '+%H:%M:%S')] Coverage regeneration failed, keeping previous outputs."
-        rm -f "$tmp_bg" "$tmp_bw"
+        rm -f "$tmp_bg" "$tmp_bw" "$tmp_sizes"
         return 1
     fi
 }
