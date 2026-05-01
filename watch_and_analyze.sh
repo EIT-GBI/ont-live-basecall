@@ -9,7 +9,7 @@
 #SBATCH --mem=64G
 #SBATCH --gres=gpu:1
 
-#SBATCH --container-image=docker://ghcr.io/eit-gbi/ont-watcher:v2
+#SBATCH --container-image=/mnt/gbi-shared/tmp/ont-watcher_v2.sqsh
 #SBATCH --container-mounts=/mnt:/mnt
 #SBATCH --output=slurm-%j.stdout
 #
@@ -186,22 +186,29 @@ regenerate_coverage() {
     local tmp_bg="${MERGED_BG}.tmp"
     local tmp_bw="${MERGED_BW}.tmp"
     local tmp_sizes="${MERGED_BG}.sizes.tmp"
+    local log="${OUT_DIR}/.regenerate_coverage.log"
 
     # Derive chrom.sizes from the BAM header so it always matches whatever
     # contigs the bedgraph contains. bedtools emits bedgraph in BAM-header
     # order; bedGraphToBigWig needs it sorted alphabetically by chrom.
-    bam_chrom_sizes "$MERGED_BAM" > "$tmp_sizes"
+    bam_chrom_sizes "$MERGED_BAM" > "$tmp_sizes" 2>"$log"
 
-    if bedtools genomecov -bga -ibam "$MERGED_BAM" \
-         | LC_ALL=C sort -k1,1 -k2,2n > "$tmp_bg" \
-       && bedGraphToBigWig "$tmp_bg" "$tmp_sizes" "$tmp_bw"; then
+    {
+        echo "=== $(date '+%H:%M:%S') regenerate_coverage ==="
+        echo "MERGED_BAM=$MERGED_BAM"
+        echo "tmp_sizes=$tmp_sizes ($(wc -l < "$tmp_sizes") lines)"
+    } >> "$log"
+
+    if bedtools genomecov -bga -ibam "$MERGED_BAM" 2>>"$log" \
+         | LC_ALL=C sort -k1,1 -k2,2n > "$tmp_bg" 2>>"$log" \
+       && bedGraphToBigWig "$tmp_bg" "$tmp_sizes" "$tmp_bw" >>"$log" 2>&1; then
         mv "$tmp_bg" "$MERGED_BG"
         mv "$tmp_bw" "$MERGED_BW"
         rm -f "$tmp_sizes"
         echo "[$(date '+%H:%M:%S')] Coverage regenerated from merged BAM."
     else
-        echo "[$(date '+%H:%M:%S')] Coverage regeneration failed, keeping previous outputs."
-        rm -f "$tmp_bg" "$tmp_bw" "$tmp_sizes"
+        echo "[$(date '+%H:%M:%S')] Coverage regeneration failed; see ${log} (kept ${tmp_bg}, ${tmp_sizes} for inspection)."
+        rm -f "$tmp_bw"
         return 1
     fi
 }
