@@ -9,6 +9,7 @@ process GETCHROMSIZES {
     output:
     path "*.sizes",      emit: sizes
     path "*.fai",        emit: fai
+    path fasta,          emit: fa
     path "versions.yml", emit: versions
 
     script:

@@ -14,6 +14,7 @@ workflow {
 
     GETCHROMSIZES(ch_reference)
     ch_fai = GETCHROMSIZES.out.fai.first()
+    ch_fa = GETCHROMSIZES.out.fa.first()
 
     if (params.chrom_sizes) {
         ch_chrom_sizes = Channel.value(file(params.chrom_sizes))
@@ -46,7 +47,7 @@ workflow {
     bais        = SAMTOOLS_SORT_INDEX.out.bai
     bedgraphs   = BEDTOOLS_GENOMECOV.out.bedgraph
     bigwigs     = UCSC_BEDGRAPHTOBIGWIG.out.bigwig
-    reference   = ch_reference
+    reference   = ch_fa
     fai         = ch_fai
     chrom_sizes = ch_chrom_sizes
 
