@@ -10,13 +10,13 @@ workflow {
         error "Please provide a reference file via --reference <path/to/ref.fa|.mmi>"
     }
 
-    ch_reference = file(params.reference)
+    ch_reference = Channel.value(file(params.reference))
 
     GETCHROMSIZES(ch_reference)
     ch_fai = GETCHROMSIZES.out.fai.first()
 
     if (params.chrom_sizes) {
-        ch_chrom_sizes = file(params.chrom_sizes)
+        ch_chrom_sizes = Channel.value(file(params.chrom_sizes))
     } else {
         ch_chrom_sizes = GETCHROMSIZES.out.sizes.first()
     }
