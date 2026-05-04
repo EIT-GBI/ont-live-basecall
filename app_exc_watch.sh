@@ -27,7 +27,7 @@ SENTINEL="${IN_DIR}/PIPELINE_DONE"
 REF_DIR="${IN_DIR}/reference"
 
 # Clair3
-CLAIR3_MODEL="models/r1041_e82_400bps_sup_v500"
+CLAIR3_MODEL="/opt/models/r1041_e82_400bps_sup_v500"
 SAMPLE_NAME="isolate"
 
 # Coverage threshold below which we skip variant calling entirely
