@@ -12,4 +12,4 @@
 #SBATCH --output=slurm-%j.stdout
 #
 
-apptainer exec --bind /mnt:/mnt /mnt/gbi-shared/home/pauline-eitgbi/ont-watcher_v2.sif bash app_exc_watch.sh
+apptainer exec --nv --bind /mnt:/mnt /mnt/gbi-shared/home/pauline-eitgbi/ont-watcher_v2.sif bash app_exc_watch.sh
