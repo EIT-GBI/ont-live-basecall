@@ -24,7 +24,7 @@ PROCESSED_BAMS="${OUT_DIR}/.processed_bams.txt"
 # Sentinel from Nextflow workflow.onComplete
 SENTINEL="${IN_DIR}/PIPELINE_DONE"
 
-REFERENCE="${IN_DIR}/reference/genome.fa"
+REF_DIR="${IN_DIR}/reference"
 
 # Clair3
 CLAIR3_MODEL="models/r1041_e82_400bps_sup_v500"
@@ -97,6 +97,16 @@ print_status() {
     echo "  Reads:     ${n_reads}   coverage ${mean_cov}"
     echo "  Variants:  ${last_nvar}   (${last_variant_status}, last attempt: ${since})"
     echo "==============================================================="
+}
+
+# Find the reference fasta in REF_DIR by glob (first match wins).
+# Empty stdout if no fasta found yet (pipeline may not have published it).
+find_reference_fa() {
+    shopt -s nullglob
+    local cands=( "${REF_DIR}"/*.fa "${REF_DIR}"/*.fasta "${REF_DIR}"/*.fna )
+    shopt -u nullglob
+    [ ${#cands[@]} -eq 0 ] && return 0
+    printf '%s\n' "${cands[0]}"
 }
 
 # Sum of all @SQ LN values in the BAM header — the genome size as the BAM sees it.
@@ -206,6 +216,14 @@ call_variants() {
         return 0
     fi
 
+    local reference
+    reference=$(find_reference_fa)
+    if [ -z "$reference" ]; then
+        echo "[$(date '+%H:%M:%S')] No reference fasta in ${REF_DIR} yet, skipping variant calling."
+        last_variant_status="skipped (no reference yet)"
+        return 0
+    fi
+
     # Check coverage — skip if too low (early in the run)
     local cov
     cov=$(current_coverage)
@@ -224,7 +242,7 @@ call_variants() {
 
     if ! "$RUN_CLAIR3" \
             --bam_fn="$MERGED_BAM" \
-            --ref_fn="$REFERENCE" \
+            --ref_fn="$reference" \
             --threads="$THREADS" \
             --platform="ont" \
             --model_path="$CLAIR3_MODEL" \

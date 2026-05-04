@@ -67,7 +67,7 @@ output {
     bais        { path 'bams'      }
     bedgraphs   { path 'bedgraphs' }
     bigwigs     { path 'bigwigs'   }
-    reference   { path { _f -> "reference/genome.fa" } }
-    fai         { path { _f -> "reference/genome.fa.fai" } }
-    chrom_sizes { path { _f -> "reference/genome.chrom.sizes" } }
+    reference   { path 'reference' }
+    fai         { path 'reference' }
+    chrom_sizes { path 'reference' }
 }
